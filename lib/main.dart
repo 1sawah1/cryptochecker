@@ -15,7 +15,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  final Map<String, String> coin = <String, String>{
+  final Map<String, String> coin = {
     'Bitcoin': 'bitcoin',
     'Ethereum': 'ethereum',
     'Litecoin': 'litecoin',
@@ -25,7 +25,7 @@ class _MyAppState extends State<MyApp> {
     'Trx': 'tron',
   };
 
-  final Map<String, IconData> coinIcons = <String, IconData>{
+  final Map<String, IconData> coinIcons = {
     'Bitcoin': Icons.currency_bitcoin,
     'Ethereum': Icons.euro_symbol,
     'Litecoin': Icons.light_mode,
@@ -46,40 +46,38 @@ class _MyAppState extends State<MyApp> {
   };
 
   Map<String, double> prices = {};
-  List<String> favoriteCoins = [];
   bool isLoading = true;
   String? errorMessage;
-  bool isGuestMenuVisible = false;
 
   @override
   void initState() {
     super.initState();
     fetchPrices();
-    fetchFavorites();
-  }
-
-  void toggleGuestMenu() {
-    setState(() {
-      isGuestMenuVisible = !isGuestMenuVisible;
-    });
   }
 
   Future<void> fetchPrices() async {
-    final String api = 'https://louay.ct.ws/index.php';
+    final String api =
+        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,litecoin,ripple,solana,dogecoin,tron&vs_currencies=usd';
+
     setState(() {
       isLoading = true;
       errorMessage = null;
     });
+
     try {
       final response = await http.get(Uri.parse(api));
       if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
         setState(() {
-          prices = Map<String, double>.from(
-            (json.decode(response.body) as List<dynamic>).fold({}, (map, item) {
-              map[item['symbol']] = double.parse(item['price']);
-              return map;
-            }),
-          );
+          prices = {
+            'Bitcoin': data['bitcoin']['usd'].toDouble(),
+            'Ethereum': data['ethereum']['usd'].toDouble(),
+            'Litecoin': data['litecoin']['usd'].toDouble(),
+            'Xrp': data['ripple']['usd'].toDouble(),
+            'Solana': data['solana']['usd'].toDouble(),
+            'Dogecoin': data['dogecoin']['usd'].toDouble(),
+            'Trx': data['tron']['usd'].toDouble(),
+          };
           isLoading = false;
         });
       } else {
@@ -96,35 +94,6 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-  Future<void> fetchFavorites() async {
-    final response = await http.get(Uri.parse('https://louay.ct.ws/index.php?action=get_favorites'));
-    if (response.statusCode == 200) {
-      setState(() {
-        favoriteCoins = List<String>.from(json.decode(response.body));
-      });
-    }
-  }
-
-  Future<void> toggleFavorite(String coinId) async {
-    if (favoriteCoins.contains(coinId)) {
-      await http.post(
-        Uri.parse('https://louay.ct.ws/index.php?action=remove_favorite'),
-        body: {'coin_id': coinId},
-      );
-      setState(() {
-        favoriteCoins.remove(coinId);
-      });
-    } else {
-      await http.post(
-        Uri.parse('https://louay.ct.ws/index.php?action=add_favorite'),
-        body: {'coin_id': coinId},
-      );
-      setState(() {
-        favoriteCoins.add(coinId);
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -132,91 +101,65 @@ class _MyAppState extends State<MyApp> {
         appBar: AppBar(
           title: Text(
             'Sawah',
-            style: GoogleFonts.acme(color: Colors.orange,fontSize: 40),
+            style: GoogleFonts.acme(color: Colors.orange, fontSize: 40),
           ),
-          backgroundColor: Colors.black,
+          backgroundColor: Colors.white,
           centerTitle: true,
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 16.0),
-              child: IconButton(
-                icon: const Icon(Icons.person),
-                iconSize: 40.0,
-                color: Colors.white,
-                onPressed: () {
-                  toggleGuestMenu();
-                },
-              ),
-            ),
-          ],
         ),
-        body: Column(
-          children: [
-            if (isGuestMenuVisible)
-              Container(
-                padding: const EdgeInsets.all(16.0),
-                color: Colors.black.withOpacity(0.8),
-                width: double.infinity,
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.account_circle,
-                      color: Colors.orange,
-                      size: 30.0,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Welcome Guest !',
-                      style: GoogleFonts.acme(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : errorMessage != null
-                    ? Center(child: Text(errorMessage!))
-                    : ListView.builder(
-                  itemCount: coin.length,
-                  itemBuilder: (context, index) {
-                    String coinName = coin.keys.elementAt(index);
-                    String coinId = coin.values.elementAt(index);
-                    IconData coinIcon = coinIcons[coinName]!;
-                    Color coinColor = coinColors[coinName]!;
-                    bool isFavorite = favoriteCoins.contains(coinId);
+        body: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              if (isLoading)
+                const Center(child: CircularProgressIndicator())
+              else if (errorMessage != null)
+                Center(
+                  child: Text(
+                    errorMessage!,
+                    style: const TextStyle(color: Colors.red, fontSize: 18),
+                  ),
+                )
+              else
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: coin.length,
+                    itemBuilder: (context, index) {
+                      String coinName = coin.keys.elementAt(index);
+                      IconData coinIcon = coinIcons[coinName]!;
+                      Color coinColor = coinColors[coinName]!;
+                      String priceText = "Loading...";
 
-                    return ListTile(
-                      leading: Icon(coinIcon, color: coinColor),
-                      title: Text(
-                        coinName,
-                        style: GoogleFonts.acme(
-                          textStyle: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w500,
+                      if (prices.containsKey(coinName)) {
+                        priceText = '\$${prices[coinName]!.toStringAsFixed(2)}';
+                      }
+
+                      return ListTile(
+                        leading: Icon(coinIcon, color: coinColor),
+                        title: Text(
+                          coinName,
+                          style: GoogleFonts.acme(
+                            textStyle: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
-                      ),
-                      trailing: IconButton(
-                        icon: Icon(
-                          isFavorite ? Icons.star : Icons.star_border,
-                          color: Colors.orange,
+                        subtitle: Text(
+                          priceText,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
                         ),
-                        onPressed: () => toggleFavorite(coinId),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
+        backgroundColor: Colors.white,
       ),
     );
   }
